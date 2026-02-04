@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shared Money Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial; background: #f2f6ff; padding: 10px; }
+    h2 { text-align: center; }
+    .tabs { text-align: center; margin-bottom: 10px; }
+    .tabs button { padding: 8px 12px; margin: 4px; border: none; background: #1976D2; color: white; border-radius: 4px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background: #2196F3; color: #000; }
+    th input, td input { width: 100%; border: none; text-align: center; }
+    .sheet { display: none; }
+    .active { display: block; }
+    .controls { margin: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .controls button { padding: 6px 10px; border: none; border-radius: 4px; background: #4CAF50; color: #fff; cursor: pointer; }
+    .danger { background: #f44336; }
+    .toggle { background:#ff9800; }
+    .status { text-align:center; font-size:12px; color:#555; }
+    .readonly input { pointer-events:none; background:#f5f5f5; }
+  </style>
+</head>
+<body>
+
+<h2>💰 Shared Money Manager (3 Sheets)</h2>
+
+<div class="tabs">
+  <button onclick="openSheet('s1')">Sheet 1</button>
+  <button onclick="openSheet('s2')">Sheet 2</button>
+  <button onclick="openSheet('s3')">Sheet 3</button>
+</div>
+
+<div id="s1" class="sheet active"></div>
+<div id="s2" class="sheet"></div>
+<div id="s3" class="sheet"></div>
+
+<p class="status" id="status">Connecting to cloud…</p>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+/* 🔴 PASTE YOUR FIREBASE CONFIG HERE */
+const firebaseConfig = {
+  apiKey: "PASTE_HERE",
+  authDomain: "PASTE_HERE",
+  databaseURL: "PASTE_HERE",
+  projectId: "PASTE_HERE",
+  storageBucket: "PASTE_HERE",
+  messagingSenderId: "PASTE_HERE",
+  appId: "PASTE_HERE"
+};
+/* 🔴 END CONFIG */
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const defaultHTML = () => `
+  <div class="controls">
+    <button onclick="addRow(this)">➕ Row</button>
+    <button onclick="addCol(this)">➕ Column</button>
+    <button class="danger" onclick="delRow(this)">🗑️ Last Row</button>
+    <button class="danger" onclick="delCol(this)">🗑️ Last Col</button>
+    <button class="toggle" onclick="toggleEdit(this)">🔒 Toggle Edit</button>
+  </div>
+  <table>
+    <tr>
+      <th><input value="Date"></th>
+      <th><input value="Description"></th>
+      <th><input value="Amount"></th>
+    </tr>
+  </table>
+`;
+
+const sheets = ["s1","s2","s3"];
+
+// Load & sync
+sheets.forEach(id => {
+  onValue(ref(db, id), snap => {
+    const html = snap.val() || defaultHTML();
+    document.getElementById(id).innerHTML = html;
+    bindInputs();
+    document.getElementById("status").innerText = "✅ Synced with cloud";
+  });
+});
+
+function saveSheet(id){
+  set(ref(db, id), document.getElementById(id).innerHTML);
+}
+
+function bindInputs(){
+  document.querySelectorAll("input").forEach(inp => {
+    inp.oninput = () => {
+      const parentSheet = inp.closest(".sheet").id;
+      saveSheet(parentSheet);
+    };
+  });
+}
+
+window.openSheet = function(id){
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+};
+
+window.addRow = function(btn){
+  const table = btn.parentElement.nextElementSibling;
+  const cols = table.rows[0].cells.length;
+  const row = table.insertRow();
+  for(let i=0;i<cols;i++){
+    const td = row.insertCell();
+    const inp = document.createElement("input");
+    td.appendChild(inp);
+  }
+  bindInputs();
+  saveSheet(btn.closest(".sheet").id);
+};
+
+window.addCol = function(btn){
+  const table = btn.parentElement.nextElementSibling;
+  const th = document.createElement("th");
+  const inp = document.createElement("input");
+  th.appendChild(inp);
+  table.rows[0].appendChild(th);
+  for(let i=1;i<table.rows.length;i++){
+    const td = table.rows[i].insertCell();
+    const inp2 = document.createElement("input");
+    td.appendChild(inp2);
+  }
+  bindInputs();
+  saveSheet(btn.closest(".sheet").id);
+};
+
+window.delRow = function(btn){
+  const table = btn.parentElement.nextElementSibling;
+  if(table.rows.length > 1) table.deleteRow(-1);
+  saveSheet(btn.closest(".sheet").id);
+};
+
+window.delCol = function(btn){
+  const table = btn.parentElement.nextElementSibling;
+  const c = table.rows[0].cells.length;
+  if(c <= 1) return;
+  for(let i=0;i<table.rows.length;i++) table.rows[i].deleteCell(c-1);
+  saveSheet(btn.closest(".sheet").id);
+};
+
+window.toggleEdit = function(btn){
+  const sheet = btn.closest(".sheet");
+  sheet.classList.toggle("readonly");
+};
+</script>
+
+</body>
+</html>
